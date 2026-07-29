@@ -61,3 +61,21 @@ fn evm_account_zero_matches_known_address() {
         "0x9858effd232b4033e47d9003d41ec7ca5ec90852"
     );
 }
+
+#[test]
+fn generate_produces_valid_mnemonic() {
+    let m = keystore::Mnemonic::generate(12).unwrap();
+    let phrase = m.phrase_for_test();
+    let parsed = bip39::Mnemonic::parse_in(bip39::Language::English, phrase).unwrap();
+    assert_eq!(parsed.word_count(), 12);
+}
+
+#[test]
+fn zeroize_phrase_clears_buffer() {
+    let mut m = keystore::Mnemonic::from_phrase(
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+        "",
+    ).unwrap();
+    m.zeroize_phrase();
+    assert!(m.phrase_for_test().is_empty());
+}
