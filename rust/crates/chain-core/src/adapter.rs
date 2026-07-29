@@ -15,9 +15,12 @@ use wallet_domain::{
 /// Implementors must be `Send + Sync` so they can be stored behind an
 /// `Arc<dyn ChainAdapter>` and shared across async tasks.
 ///
-/// Capabilities (native transfer, resource fees, blockhash freshness)
-/// are exposed per-adapter on the `ChainDescriptor` rather than via a
-/// runtime bitfield, so the surface area here stays small and stable.
+/// The previous proof plan exposed a `capabilities()` method on `ChainAdapter`
+/// that returned a `ChainCapabilities` struct. We omit it here — capabilities
+/// have not yet been modeled in `wallet-domain` (see `ChainCapabilities`
+/// in `wallet-domain::descriptor`). When modeling is added later, attach
+/// fields directly to `ChainDescriptor` rather than a separate runtime
+/// bitfield so the contract is a single source of truth.
 #[async_trait]
 pub trait ChainAdapter: Send + Sync {
     /// Return a descriptor describing the chain this adapter speaks for.
