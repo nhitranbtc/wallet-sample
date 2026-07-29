@@ -9,7 +9,7 @@ import '../widgets/amount_input.dart';
 import '../widgets/fee_summary.dart';
 import '../widgets/testnet_warning.dart';
 
-class SendScreen extends StatelessWidget {
+class SendScreen extends StatefulWidget {
   const SendScreen({
     super.key,
     required this.controller,
@@ -20,7 +20,57 @@ class SendScreen extends StatelessWidget {
   final ValueChanged<bool> onReview;
 
   @override
+  State<SendScreen> createState() => _SendScreenState();
+}
+
+class _SendScreenState extends State<SendScreen> {
+  final TextEditingController _recipient = TextEditingController();
+  final TextEditingController _amount = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _recipient.text = widget.controller.recipient;
+    _amount.text = widget.controller.amount;
+    widget.controller.addListener(_syncFromDraft);
+  }
+
+  @override
+  void didUpdateWidget(SendScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_syncFromDraft);
+      widget.controller.addListener(_syncFromDraft);
+      _syncFromDraft();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_syncFromDraft);
+    _recipient.dispose();
+    _amount.dispose();
+    super.dispose();
+  }
+
+  /// Mirrors draft-side mutations (e.g. `useMax`) back into the text fields
+  /// without echoing user keystrokes, which already flow draft-ward.
+  void _syncFromDraft() {
+    _applyText(_recipient, widget.controller.recipient);
+    _applyText(_amount, widget.controller.amount);
+  }
+
+  void _applyText(TextEditingController field, String value) {
+    if (field.text == value) return;
+    field.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final controller = widget.controller;
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
@@ -54,11 +104,11 @@ class SendScreen extends StatelessWidget {
                 balance: controller.availableBalance.toString(),
               ),
               AddressInput(
-                controller: TextEditingController(text: controller.recipient),
+                controller: _recipient,
                 onChanged: controller.updateRecipient,
               ),
               AmountInput(
-                controller: TextEditingController(text: controller.amount),
+                controller: _amount,
                 validator: controller.validate,
                 onChanged: controller.updateAmount,
                 onMax: controller.useMax,
@@ -70,7 +120,7 @@ class SendScreen extends StatelessWidget {
               ),
               const SizedBox(height: WalletSpacing.l),
               FilledButton(
-                onPressed: enabled ? () => onReview(true) : null,
+                onPressed: enabled ? () => widget.onReview(true) : null,
                 child: const Text('Review transfer'),
               ),
             ],

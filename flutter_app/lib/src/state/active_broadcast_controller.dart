@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import '../bridge/bridge_facade_stub.dart';
 import 'biometric_gate.dart';
 
+// Stages: preparing | awaitingAuth | signing | broadcasting | submitted | confirmed | failed.
+// The brief Step 8 wording said "six" but enumerates seven; this is the canonical seven-stage pipeline.
 enum TransferStage {
   preparing,
   awaitingAuth,
