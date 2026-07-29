@@ -1,0 +1,11 @@
+[package]
+name = "wallet-domain"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+serde = { workspace = true }
+chrono = { workspace = true }
