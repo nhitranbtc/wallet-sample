@@ -19,7 +19,10 @@ fn bip39_seed_matches_trezor_vector() {
 fn bitcoin_account_zero_vector() {
     let mnemonic = Mnemonic::from_phrase(VECTOR_PHRASE, "").unwrap();
     let session = WalletSession::from_mnemonic(mnemonic).unwrap();
-    assert_eq!(session.derive_bitcoin_address(false).unwrap(), "TODO");
+    assert_eq!(
+        session.derive_bitcoin_address(false).unwrap(),
+        unimplemented!("BTC canonical vector pending verification against pinned bdk_wallet 1")
+    );
 }
 
 #[test]
@@ -27,7 +30,10 @@ fn bitcoin_account_zero_vector() {
 fn solana_account_zero_vector() {
     let mnemonic = Mnemonic::from_phrase(VECTOR_PHRASE, "").unwrap();
     let session = WalletSession::from_mnemonic(mnemonic).unwrap();
-    assert_eq!(session.derive_solana_address().unwrap(), "TODO");
+    assert_eq!(
+        session.derive_solana_address().unwrap(),
+        unimplemented!("SOL canonical vector pending verification against pinned ed25519-dalek 2")
+    );
 }
 
 #[test]
@@ -35,5 +41,23 @@ fn solana_account_zero_vector() {
 fn tron_account_zero_vector() {
     let mnemonic = Mnemonic::from_phrase(VECTOR_PHRASE, "").unwrap();
     let session = WalletSession::from_mnemonic(mnemonic).unwrap();
-    assert_eq!(session.derive_tron_address().unwrap(), "TODO");
+    assert_eq!(
+        session.derive_tron_address().unwrap(),
+        unimplemented!("TRX canonical vector pending verification against pinned k256 0.13")
+    );
+}
+
+#[test]
+fn evm_account_zero_matches_known_address() {
+    let mnemonic = keystore::Mnemonic::from_phrase(
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+        "",
+    )
+    .unwrap();
+    let session = keystore::WalletSession::from_mnemonic(mnemonic).unwrap();
+    let address = session.derive_evm_address().unwrap();
+    assert_eq!(
+        address.to_lowercase(),
+        "0x9858effd232b4033e47d9003d41ec7ca5ec90852"
+    );
 }

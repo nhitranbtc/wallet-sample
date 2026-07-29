@@ -33,6 +33,7 @@ impl Derive for WalletSession {
         let key = derive_secp256k1(&self.seed, &path)?;
         let witness_program = Sha256::digest(key.public_key(Secp256k1::new()).serialize());
         let mut data = vec![0x06, 0x14];
+        // FIXME(keystore -> chain-bitcoin): swap to HASH160 (SHA-256 -> RIPEMD-160) before flipping the BTC vector test off `#[ignore]`.
         data.extend_from_slice(&witness_program[..20]);
         bech32::encode("tb", data.to_base32(), Variant::Bech32)
             .map_err(|_| WalletError::DerivationFailed)
