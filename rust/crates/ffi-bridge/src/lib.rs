@@ -16,6 +16,7 @@
 pub mod api;
 pub mod error;
 pub mod handle;
+pub mod services;
 pub mod status;
 pub mod summary;
 
