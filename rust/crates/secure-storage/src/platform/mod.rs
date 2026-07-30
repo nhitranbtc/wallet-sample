@@ -35,6 +35,28 @@ pub enum BiometricProof {
     },
 }
 
+impl BiometricProof {
+    /// Test-only constructor: builds a `Granted` variant directly.
+    /// Always available so integration tests in `tests/` can call it
+    /// (Cargo does not propagate `cfg(test)` from the test target back
+    /// into the library it depends on); the `_for_test` suffix and
+    /// `#[doc(hidden)]` mark it as not part of the production API.
+    /// Production code paths must route through a real platform
+    /// secure-storage implementation.
+    #[doc(hidden)]
+    pub fn granted_for_test(
+        wrapped: WrappedKey,
+        purpose: KeyPurpose,
+        challenge: [u8; 32],
+    ) -> Self {
+        Self::Granted {
+            wrapped,
+            purpose,
+            challenge,
+        }
+    }
+}
+
 #[async_trait]
 pub trait SecureStorage: Send + Sync {
     async fn wrap_key(&self, dek: &[u8; 32]) -> Result<WrappedKey, SecureStorageError>;
