@@ -103,42 +103,6 @@ impl SessionState {
     pub fn is_removed(&self) -> bool {
         self.phase.load(Ordering::Acquire) == Phase::Removed as u8
     }
-
-    /// Test-only constructor: returns a `SessionState` already in
-    /// `Ready` with a real `WalletSession` derived from a real
-    /// `Mnemonic`. Gated behind `#[cfg(test)]` so it is never compiled
-    /// into release artifacts; the `_for_test` suffix and
-    /// `#[doc(hidden)]` mark it as not part of the production API.
-    ///
-    /// Construction routes through the public state machine —
-    /// `begin_enroll` then `activate` — so any future tightening of
-    /// phase guards or `WalletSession` invariants is exercised by
-    /// tests instead of being skipped over by a side door.
-    #[cfg(test)]
-    #[doc(hidden)]
-    pub fn ready_for_test() -> Self {
-        use keystore::{Mnemonic, WalletSession};
-
-        // Trezor's well-known BIP39 test vector: zero entropy, but
-        // valid phrase and deterministic 64-byte seed.
-        const TREZOR_PHRASE: &str = "abandon abandon abandon abandon \
-            abandon abandon abandon abandon abandon abandon abandon about";
-
-        // `Mnemonic` derives `ZeroizeOnDrop` and is not `Clone`, so
-        // derive two copies from the same phrase. BIP39 makes this
-        // deterministic — both `seed`s are byte-identical.
-        let mnemonic_for_enroll = Mnemonic::from_phrase(TREZOR_PHRASE, "")
-            .expect("Trezor test mnemonic parses");
-        let mnemonic_for_session = Mnemonic::from_phrase(TREZOR_PHRASE, "")
-            .expect("Trezor test mnemonic parses");
-        let wallet_session =
-            WalletSession::from_mnemonic(mnemonic_for_session).expect("session from mnemonic");
-
-        let mut s = Self::new();
-        s.begin_enroll(mnemonic_for_enroll).expect("begin_enroll");
-        s.activate(wallet_session).expect("activate");
-        s
-    }
 }
 
 impl Default for SessionState {
