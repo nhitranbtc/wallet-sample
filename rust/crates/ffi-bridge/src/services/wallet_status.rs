@@ -41,11 +41,11 @@ pub(crate) fn read(handle: &WalletHandle) -> WalletStatus {
     }
 }
 
-/// Release-1 + Release-2 chain set: Ethereum (Sepolia) + Bitcoin
-/// (testnet) + Solana (devnet). Tron lands in Task 17.
+/// Release-1 + Release-2 + Release-3 chain set: Ethereum (Sepolia)
+/// + Bitcoin (testnet) + Solana (devnet) + Tron (Shasta).
 pub(crate) fn list_chains(handle: &WalletHandle) -> Vec<ChainId> {
     let _ = handle;
-    vec![ChainId::Ethereum, ChainId::Bitcoin, ChainId::Solana]
+    vec![ChainId::Ethereum, ChainId::Bitcoin, ChainId::Solana, ChainId::Tron]
 }
 
 /// Refresh account-zero descriptors for the wallet. The actual

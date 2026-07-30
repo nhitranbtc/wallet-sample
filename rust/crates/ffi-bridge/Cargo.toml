@@ -22,6 +22,7 @@ wallet-orchestration = { path = "../wallet-orchestration" }
 chain-ethereum = { path = "../chain-ethereum" }
 chain-bitcoin = { path = "../chain-bitcoin" }
 chain-solana = { path = "../chain-solana" }
+chain-tron = { path = "../chain-tron" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }

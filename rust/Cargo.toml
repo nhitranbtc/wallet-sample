@@ -9,6 +9,7 @@ members = [
   "crates/chain-ethereum",
   "crates/chain-bitcoin",
   "crates/chain-solana",
+  "crates/chain-tron",
   "crates/rpc-client",
   "crates/ffi-bridge",
 ]
