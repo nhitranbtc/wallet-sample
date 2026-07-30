@@ -2,11 +2,12 @@
 //!
 //! These tests pin the validation surface against real Solana
 //! pubkey inputs: a canonical ed25519 mainnet address, a
-//! zero-amount request, a non-base58 garbage string, and a base58
-//! string of the wrong length. Network and RPC calls are
-//! intentionally not exercised here — the transport wiring lands
-//! with Task 8's bridge implementation and the architecture proof
-//! uses a zero-byte blockhash placeholder.
+//! zero-amount request, a non-base58 garbage string, a base58
+//! string of the wrong length, and the all-zero System Program
+//! address (a decodable but small-order point). Network and RPC
+//! calls are intentionally not exercised here — the transport
+//! wiring lands with Task 8's bridge implementation and the
+//! architecture proof uses a zero-byte blockhash placeholder.
 
 use chain_core::ChainAdapter;
 use chain_solana::{SolanaAdapter, SolanaConfig};
@@ -66,15 +67,11 @@ async fn prepare_accepts_valid_solana_address() {
     let a = SolanaAdapter::new(config()).unwrap();
     // A known-valid mainnet ed25519 pubkey: the USDC token mint
     // (`EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`) on Solana
-    // mainnet. Decoding `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`
-    // from base58 yields exactly 32 bytes, and the resulting bytes
-    // pass the `ed25519_dalek::VerifyingKey::from_bytes` off-curve
-    // check (it is a real on-curve ed25519 public key). This is
-    // not the System Program (`11111...`) — the System Program
-    // decodes to 32 bytes of zero and is rejected by dalek's
-    // compressed-point decoder because the all-zero encoding is
-    // not a valid Edwards point, even though it is a valid
-    // base58-of-32-bytes input.
+    // mainnet. It decodes from base58 to exactly 32 bytes, is a
+    // real on-curve ed25519 public key, and is neither the identity
+    // point nor a small-subgroup point — so it clears every arm of
+    // `is_valid_solana_pubkey`. The all-zero System Program address
+    // is covered separately by `prepare_rejects_all_zero_pubkey`.
     let req = request(
         "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
         1,
@@ -92,6 +89,23 @@ async fn prepare_rejects_malformed_address() {
     // back to Dart as a validation error rather than a chain-state
     // failure.
     let req = request("not-a-pubkey", 1);
+    let err = a.prepare_transfer(req).await.unwrap_err();
+    assert_eq!(err.category(), ErrorCategory::Input);
+}
+
+#[tokio::test]
+async fn prepare_rejects_all_zero_pubkey() {
+    let a = SolanaAdapter::new(config()).unwrap();
+    // The System Program address `11111111111111111111111111111111`
+    // decodes to 32 zero bytes. That encoding *is* a decodable
+    // compressed Edwards point (y = 0, sign = 0), so
+    // `VerifyingKey::from_bytes` accepts it — the decoder alone is
+    // not enough. It is the order-4 identity-adjacent point, so it
+    // is both `is_weak()` and the explicit all-zero identity we
+    // reject. Sending to it would burn funds, and pairing it with a
+    // known small-order secret is the classic signature-substitution
+    // setup, so `prepare_transfer` must refuse it as `Input`.
+    let req = request("11111111111111111111111111111111", 1);
     let err = a.prepare_transfer(req).await.unwrap_err();
     assert_eq!(err.category(), ErrorCategory::Input);
 }

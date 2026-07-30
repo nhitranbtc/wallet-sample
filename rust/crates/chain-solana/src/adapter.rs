@@ -5,17 +5,18 @@
 //! `rpc_client::EndpointConfig::validate` (HTTPS-only, testnet-only,
 //! host allow-list). The adapter never panics.
 //!
-//! The architecture proof uses `solana_signer::Signer` for the
-//! eventual ed25519 signature path and `solana_rpc_client` for the
-//! recent-blockhash fetch. Both APIs are behind a small synchronous
-//! façade in this file; the contract tests exercise only the
-//! validation surface, not the network calls, so no real RPC request
-//! is made.
+//! The architecture proof declares `solana-signer` and
+//! `solana-rpc-client` as dependencies but does **not** yet call
+//! either: the ed25519 signature path and the recent-blockhash /
+//! broadcast / status transport are deferred. Every call site that
+//! will consume them carries a `FIXME:` below so the unused deps are
+//! visible rather than silently claimed. See
+//! `wallet-sample/docs/manual-test-release-2.md` ("Release 2
+//! broadcast wiring (deferred)") for the user-facing consequence.
 //!
 //! Address validation is base58 decode + a 32-byte length check plus
-//! an ed25519 off-curve check (a Solana on-curve point is a valid
-//! pubkey; the identity point is rejected because it would never
-//! sign anything meaningful on devnet). `prepare_transfer` builds a
+//! an ed25519 identity / small-subgroup rejection — see
+//! [`is_valid_solana_pubkey`]. `prepare_transfer` builds a
 //! `ResourceSummary::LamportsAndComputeUnits` and a
 //! `PreparedPayload::Sol { blockhash }`; the blockhash is the
 //! zero-byte placeholder for the architecture proof (real impl
@@ -60,42 +61,45 @@ impl SolanaAdapter {
 
 /// Validate a base58-encoded Solana pubkey.
 ///
-/// A valid Solana pubkey is 32 bytes of decoded base58 that decodes
-/// to a point on the ed25519 curve which is **not** the identity
-/// point. Decoding rejects malformed base58; the length check
-/// rejects anything other than 32 bytes; the off-curve / identity
-/// check rejects the small constant set of strings that pass the
-/// first two checks but would never be a real pubkey.
+/// Solana pubkeys are 32-byte (compressed) Edwards points. We reject:
+///   - Wrong length / non-base58: bs58 decode + length check
+///   - Identity point (all-zero bytes): explicit byte check
+///   - Small-subgroup points that are mathematically valid but
+///     vulnerable to signature malleability: ed25519-dalek's
+///     `is_weak()`
 ///
-/// # Task 16 contract
+/// Real wallets and CLI tools perform equivalent checks.
 ///
-/// The ed25519 off-curve check uses
-/// [`ed25519_dalek::VerifyingKey::from_bytes`], which is a
-/// well-defined constant-time decoding function. A pubkey whose
-/// 32-byte encoding decodes to a point not on the curve returns
-/// `Err(InternalError)`, and we treat that as "not a valid Solana
-/// pubkey" — same result as a base58 / length failure. The empty
-/// result is rejected so callers cannot silently hand an empty
-/// destination over to `prepare_transfer`.
+/// # Why the decoder alone is not enough
+///
+/// `ed25519_dalek::VerifyingKey::from_bytes` rejects malformed
+/// encodings but **accepts** low-order and identity points. The
+/// System Program address `11111111111111111111111111111111`
+/// decodes to 32 zero bytes, which is a decodable order-4 point, so
+/// `from_bytes` returns `Ok`. Accepting it would let a caller
+/// prepare a transfer that burns funds, and pairing a crafted
+/// small-order pubkey with a known weak secret is the classic
+/// signing-substitute attack. Hence the extra `is_weak()` and
+/// all-zero guards below.
 fn is_valid_solana_pubkey(s: &str) -> bool {
     let raw = match bs58::decode(s).into_vec() {
         Ok(b) => b,
         Err(_) => return false,
     };
-    if raw.is_empty() {
-        return false;
-    }
     if raw.len() != 32 {
         return false;
     }
     let mut bytes = [0u8; 32];
     bytes.copy_from_slice(&raw);
-    // `VerifyingKey::from_bytes` returns `Err` for any 32-byte input
-    // that is not a valid compressed Edwards point. Solana treats
-    // both the identity point and off-curve points as invalid
-    // destinations; the dalek check covers both, so a single
-    // success/fail branch is sufficient.
-    VerifyingKey::from_bytes(&bytes).is_ok()
+    let vk = match VerifyingKey::from_bytes(&bytes) {
+        Ok(vk) => vk,
+        Err(_) => return false,
+    };
+    // `is_weak()` covers the small-subgroup points; the explicit
+    // all-zero comparison pins the identity-point reject so the
+    // guarantee survives any future change in dalek's definition of
+    // "weak".
+    !vk.is_weak() && bytes != [0u8; 32]
 }
 
 #[async_trait]
@@ -158,11 +162,12 @@ impl ChainAdapter for SolanaAdapter {
             network: self.config.network,
             expires_at: Utc::now() + Duration::seconds(60),
             status: SnapshotStatus::Fresh,
-            // Real implementation: fetch via
-            // `RpcClient::get_latest_blockhash()` and embed the
-            // returned 32-byte hash here. The architecture proof
-            // accepts the zero placeholder so the contract tests do
-            // not need network access.
+            // FIXME(Release 2 broadcast wiring): fetch the real hash
+            // with `solana_rpc_client::RpcClient::get_latest_blockhash`
+            // and embed it here. Until then this zero placeholder
+            // makes the prepared payload unsignable/unbroadcastable
+            // on devnet, and `solana-rpc-client` stays an unused
+            // dependency in Cargo.toml.
             payload: PreparedPayload::Sol {
                 blockhash: [0u8; 32],
             },
@@ -173,8 +178,13 @@ impl ChainAdapter for SolanaAdapter {
         &self,
         _signed: SignedEnvelope,
     ) -> Result<BroadcastReceipt, ChainError> {
-        // Bridge impl (follow-up): `solana_rpc_client`
-        // `send_transaction` over the signed envelope.
+        // FIXME(Release 2 broadcast wiring): sign via
+        // `solana_signer::Signer` (see `signer::build_signer`) and
+        // submit with `solana_rpc_client::RpcClient::send_transaction`.
+        // The empty receipt below is a placeholder — it reports no
+        // signature, so callers cannot poll it. `ffi-bridge`'s
+        // `authenticate_sign_and_broadcast` therefore refuses the
+        // Solana arm outright instead of reaching this code.
         Ok(BroadcastReceipt {
             transaction_id: TransactionId(String::new()),
             submitted_at: Utc::now(),
@@ -185,8 +195,11 @@ impl ChainAdapter for SolanaAdapter {
         &self,
         _id: &TransactionId,
     ) -> Result<TransactionStatus, ChainError> {
-        // Bridge impl (follow-up): `solana_rpc_client`
-        // `get_signature_statuses` maps to Confirmed / Failed.
+        // FIXME(Release 2 broadcast wiring): map
+        // `solana_rpc_client::RpcClient::get_signature_statuses` onto
+        // Confirmed / Failed. Hard-coded `Pending` means a polling
+        // caller never terminates, which is why the manual-test
+        // checklist marks the poll step blocked.
         Ok(TransactionStatus::Pending)
     }
 }

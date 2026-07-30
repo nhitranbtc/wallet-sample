@@ -18,6 +18,32 @@ validates `endpoint` against `rpc_client::EndpointConfig::validate`
 placeholder blockhash (real impl will fetch via
 `solana_rpc_client::RpcClient::get_latest_blockhash`).
 
+## ⚠️ Release 2 broadcast wiring (deferred)
+
+**Steps 7–8 below cannot pass on this build and are marked
+`BLOCKED`.** The Solana adapter ships validation and preparation
+only; the signing and transport path is not wired:
+
+- `chain-solana` declares `solana-signer` and `solana-rpc-client`
+  in `Cargo.toml` but calls neither. Each call site that will use
+  them carries a `FIXME(Release 2 broadcast wiring)` comment in
+  `crates/chain-solana/src/adapter.rs`.
+- `prepare_transfer` embeds a zero-byte blockhash placeholder
+  instead of a fetched one, so the prepared payload could not be
+  accepted by devnet even if it were signed.
+- `SolanaAdapter::broadcast` returns an empty `TransactionId`, and
+  `transaction_status` is hard-coded to `Pending` — a poll loop
+  over it would never terminate.
+- `ffi-bridge`'s `authenticate_sign_and_broadcast`
+  (`crates/ffi-bridge/src/services/signing.rs`) returns
+  `ErrorCategory::Broadcast` for `ChainId::Solana` rather than
+  reaching the adapter at all.
+
+Until that wiring lands, treat steps 1–6 and 9–10 as the live
+Release-2 checklist. Do **not** file a bug for a failed step 7 or
+8; the expected observation there is the `Broadcast` error from
+the FFI layer.
+
 ## Preconditions
 
 - **Device**: iOS 16+ or Android 12+ with Face ID / Touch ID /
@@ -56,15 +82,22 @@ placeholder blockhash (real impl will fetch via
    on `https://explorer.solana.com?cluster=devnet`.
 6. Tap **Send** → **Solana**. Enter the destination address (any
    other devnet address you control) and an amount of **0.0005
-   SOL**.
-7. Tap **Review**. A biometric prompt must fire for
+   SOL**. Confirm the app rejects the System Program address
+   `11111111111111111111111111111111` as an invalid destination —
+   it is an all-zero (identity) ed25519 point and
+   `prepare_transfer` refuses it.
+7. **BLOCKED — Release 2 broadcast wiring (deferred).** Tap
+   **Review**. A biometric prompt must fire for
    `authenticate_sign_and_broadcast`. **Do not** dismiss it
    without authenticating — the `SigningCoordinator` will refuse
-   to consume the proof otherwise.
-8. After broadcast, the app should show a pending status; poll
-   until the devnet explorer shows ≥ 1 confirmation. The
-   transaction signature must be visible in
-   `https://explorer.solana.com?cluster=devnet`.
+   to consume the proof otherwise. On this build the call then
+   fails with an `ErrorCategory::Broadcast` error instead of
+   signing; that is the expected result, not a bug.
+8. **BLOCKED — Release 2 broadcast wiring (deferred).** There is
+   no broadcast on this build, so no pending status and no devnet
+   signature to poll for. Re-enable this step (and step 7) once
+   `solana-signer` / `solana-rpc-client` are wired through
+   `SolanaAdapter::broadcast` and the `ffi-bridge` Solana arm.
 9. Tap **Lock wallet**. A fresh biometric prompt must fire
    (lock is a destructive coordinator path). Verify the wallet
    UI now shows the locked state.
