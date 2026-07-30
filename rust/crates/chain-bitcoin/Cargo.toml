@@ -20,5 +20,3 @@ rpc-client = { path = "../rpc-client" }
 chrono = { workspace = true }
 uuid = { workspace = true }
 bech32 = { workspace = true }
-aes-gcm = { workspace = true }
-zeroize = { workspace = true }
