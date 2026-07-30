@@ -16,6 +16,8 @@ import UIKit
 /// Activity / view controller; Flutter itself never observes them.
 class MnemonicSurface: NSObject, FlutterPlatformView {
   private let textField = UITextField()
+  private let container: UIView = UIView()
+  private var installed = false
 
   init(_ frame: CGRect) {
     super.init()
@@ -24,13 +26,21 @@ class MnemonicSurface: NSObject, FlutterPlatformView {
     textField.autocorrectionType = .no
     textField.autocapitalizationType = .none
     textField.spellCheckingType = .no
+    container.frame = frame
   }
 
   func view() -> UIView {
-    let container = UIView(frame: .zero)
-    container.addSubview(textField)
-    // iOS suppresses screenshots in the app-switcher automatically when
-    // textField.isSecureTextEntry is true.
+    if !installed {
+      container.addSubview(textField)
+      textField.translatesAutoresizingMaskIntoConstraints = false
+      NSLayoutConstraint.activate([
+        textField.topAnchor.constraint(equalTo: container.topAnchor),
+        textField.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        textField.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+        textField.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+      ])
+      installed = true
+    }
     return container
   }
 }

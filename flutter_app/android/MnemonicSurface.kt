@@ -1,3 +1,7 @@
+// NOTE: placeholder package — must match the namespace declared in
+//       `android/app/build.gradle` once `flutter create` generates the
+//       host Flutter project. Update this line in lockstep with the
+//       gradle namespace.
 package com.example.wallet_sample
 
 import android.content.Context
@@ -13,8 +17,8 @@ import io.flutter.plugin.platform.PlatformView
  * Secure-display semantics on Android:
  * Unlike iOS, the platform does NOT automatically obscure secure fields in
  * the recents/thumbnail snapshot. The host Activity is responsible for
- * applying screenshot-suppress and clipboard-clearing semantics. In the
- * Activity's `onCreate` we must call:
+ * applying screenshot-suppress semantics. In the Activity's `onCreate`
+ * we must call:
  *
  *   window.setFlags(
  *       WindowManager.LayoutParams.FLAG_SECURE,
@@ -22,10 +26,15 @@ import io.flutter.plugin.platform.PlatformView
  *   )
  *   window.setShowWhenLocked(true)
  *
- * `FLAG_SECURE` blocks both screenshots and the recents-list snapshot of
- * this Activity, preventing recovery phrases from being captured when the
- * user switches apps. The EditText is configured with `TYPE_TEXT_VARIATION_PASSWORD`
- * to opt into the secure input path and disable suggestions.
+ * Screenshot suppression: `FLAG_SECURE` blocks both screenshots and the
+ * recents-list snapshot of this Activity, preventing recovery phrases
+ * from being captured when the user switches apps. The EditText is
+ * configured with `TYPE_TEXT_VARIATION_PASSWORD` to opt into the secure
+ * input path and disable suggestions.
+ *
+ * Clipboard clearing: NOT yet implemented. `FLAG_SECURE` does not clear
+ * the clipboard on Activity dismiss; that must be wired explicitly in
+ * `onPause` / `onDestroy` (see `dispose()` below for the placeholder).
  */
 class MnemonicSurface(private val context: Context) : PlatformView {
     private val editText = EditText(context)
@@ -41,5 +50,9 @@ class MnemonicSurface(private val context: Context) : PlatformView {
         return editText
     }
 
-    override fun dispose() {}
+    override fun dispose() {
+        // TODO(secure-surface): clear the clipboard on dismiss to prevent
+        // recovery phrase leakage via clipboard history. Not yet wired in
+        // this architecture-proof release.
+    }
 }
