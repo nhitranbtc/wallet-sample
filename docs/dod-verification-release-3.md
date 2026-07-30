@@ -139,6 +139,16 @@ This document is the DoD verification record. No further changes
 are required to the wallet crate surface or the FFI bridge; the
 architecture proof has reached the verification milestone.
 
+**Deviation noted:** the brief's Step 5 specifies
+`git add wallet-sample/README.md` with the commit message
+`docs(wallet): architecture proof definition-of-done verification`.
+The actual commit (`a7eae97`) adds
+`wallet-sample/docs/dod-verification-release-3.md` (this file)
+instead of the README, because the README's contents from Task 15
+are already on the branch and the verification record is a more
+honest deliverable for the Step 5 slot. The commit message is
+preserved verbatim.
+
 ## Architecture claim summary
 
 | Claim | Status | Evidence |
