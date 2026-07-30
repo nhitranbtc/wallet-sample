@@ -16,6 +16,7 @@
 use rusqlite::{params, Connection};
 use secure_storage::Vault;
 use wallet_domain::error::ChainError;
+use zeroize::Zeroizing;
 
 /// Stores BDK change sets as Vault-sealed rows in SQLite.
 ///
@@ -25,7 +26,7 @@ use wallet_domain::error::ChainError;
 pub struct EncryptedBdkStore {
     conn: Connection,
     /// Wrapped DEK for `Vault::seal` / `Vault::open`.
-    dek: [u8; 32],
+    dek: Zeroizing<[u8; 32]>,
 }
 
 impl EncryptedBdkStore {
@@ -39,12 +40,15 @@ impl EncryptedBdkStore {
     pub fn open(path: &str, dek: &[u8; 32]) -> Result<Self, ChainError> {
         let conn = Connection::open(path)
             .map_err(|_| ChainError::Configuration("bdk db open".into()))?;
-        Ok(Self { conn, dek: *dek })
+        Ok(Self {
+            conn,
+            dek: Zeroizing::new(*dek),
+        })
     }
 
     /// Persist `change_set` after sealing it via `Vault::seal`.
     pub fn save_change_set(&self, change_set: &[u8]) -> Result<(), ChainError> {
-        let blob = Vault::seal(&self.dek, change_set)
+        let blob = Vault::seal(&*self.dek, change_set)
             .map_err(|_| ChainError::Internal("vault seal".into()))?;
         self.conn
             .execute(
@@ -84,7 +88,7 @@ impl EncryptedBdkStore {
             let blob: Vec<u8> = row
                 .get(0)
                 .map_err(|_| ChainError::Internal("bdk db col".into()))?;
-            let plaintext = Vault::open(&self.dek, &blob)
+            let plaintext = Vault::open(&*self.dek, &blob)
                 .map_err(|_| ChainError::Internal("vault open".into()))?;
             Ok(Some((*plaintext).clone()))
         } else {

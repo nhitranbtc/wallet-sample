@@ -16,6 +16,7 @@ wallet-domain = { path = "../wallet-domain" }
 chain-core = { path = "../chain-core" }
 keystore = { path = "../keystore" }
 secure-storage = { path = "../secure-storage" }
+zeroize = { workspace = true }
 rpc-client = { path = "../rpc-client" }
 chrono = { workspace = true }
 uuid = { workspace = true }
