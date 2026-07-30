@@ -17,6 +17,10 @@ pub struct WrappedKey {
 pub enum KeyPurpose {
     Sign,
     Decrypt,
+    /// Authorizes pausing an active session (`SessionState::lock`).
+    /// Distinct from `Sign` so that a signature-purpose proof cannot
+    /// also authorize a lock (post-Task-11 security review, Finding 6).
+    Lock,
     Wipe,
 }
 
