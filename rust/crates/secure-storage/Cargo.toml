@@ -12,3 +12,10 @@ thiserror = { workspace = true }
 async-trait = { workspace = true }
 serde = { workspace = true }
 rand = "0.8"
+
+[features]
+# Test-only helpers (e.g. `BiometricProof::granted_for_test`). Opt-in:
+# production builds with `--no-default-features` or default features
+# compile only the type and its `Granted` variant; downstream test
+# targets enable this feature via their own dev-dependency declaration.
+test-fixtures = []

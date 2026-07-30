@@ -61,6 +61,14 @@ impl SessionState {
     }
 
     pub fn lock(&mut self) {
+        // Terminal state: a removed wallet has no session and no
+        // mnemonic to scrub. `lock()` after `remove()` must be a no-op
+        // so the phase tag keeps its terminal meaning — re-marking it
+        // `Locked` would let a downstream check conflate the two and
+        // resurrect a destroyed session from a stray UI flow.
+        if matches!(self.phase(), Phase::Removed) {
+            return;
+        }
         if self.session.take().is_some() {
             // Dropped with `ZeroizeOnDrop`.
         }
@@ -97,18 +105,38 @@ impl SessionState {
     }
 
     /// Test-only constructor: returns a `SessionState` already in
-    /// `Ready` with a zero-initialized `WalletSession`. Always
-    /// available so integration tests in `tests/` can call it (Cargo
-    /// does not propagate `cfg(test)` from the test target back into
-    /// the library it depends on); the `_for_test` suffix and
+    /// `Ready` with a real `WalletSession` derived from a real
+    /// `Mnemonic`. Gated behind `#[cfg(test)]` so it is never compiled
+    /// into release artifacts; the `_for_test` suffix and
     /// `#[doc(hidden)]` mark it as not part of the production API.
+    ///
+    /// Construction routes through the public state machine —
+    /// `begin_enroll` then `activate` — so any future tightening of
+    /// phase guards or `WalletSession` invariants is exercised by
+    /// tests instead of being skipped over by a side door.
+    #[cfg(test)]
     #[doc(hidden)]
     pub fn ready_for_test() -> Self {
+        use keystore::{Mnemonic, WalletSession};
+
+        // Trezor's well-known BIP39 test vector: zero entropy, but
+        // valid phrase and deterministic 64-byte seed.
+        const TREZOR_PHRASE: &str = "abandon abandon abandon abandon \
+            abandon abandon abandon abandon abandon abandon abandon about";
+
+        // `Mnemonic` derives `ZeroizeOnDrop` and is not `Clone`, so
+        // derive two copies from the same phrase. BIP39 makes this
+        // deterministic — both `seed`s are byte-identical.
+        let mnemonic_for_enroll = Mnemonic::from_phrase(TREZOR_PHRASE, "")
+            .expect("Trezor test mnemonic parses");
+        let mnemonic_for_session = Mnemonic::from_phrase(TREZOR_PHRASE, "")
+            .expect("Trezor test mnemonic parses");
+        let wallet_session =
+            WalletSession::from_mnemonic(mnemonic_for_session).expect("session from mnemonic");
+
         let mut s = Self::new();
-        s.phase = AtomicU8::new(Phase::Ready as u8);
-        // Safe: `WalletSession` derives `ZeroizeOnDrop`; its only field
-        // is `[u8; 64]`. We never read or sign with this value in tests.
-        s.session = Some(unsafe { std::mem::zeroed() });
+        s.begin_enroll(mnemonic_for_enroll).expect("begin_enroll");
+        s.activate(wallet_session).expect("activate");
         s
     }
 }

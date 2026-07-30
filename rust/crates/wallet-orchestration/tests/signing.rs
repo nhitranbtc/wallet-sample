@@ -44,3 +44,15 @@ fn coordinator_rejects_synthetic_proof() {
         WalletError::Authentication(_)
     ));
 }
+
+#[test]
+fn lock_is_noop_on_removed_session() {
+    let mut s = SessionState::ready_for_test();
+    s.remove();
+    assert!(s.is_removed(), "precondition: phase is Removed");
+    s.lock();
+    // `lock()` after `remove()` must leave the phase tag at `Removed`
+    // — re-marking it `Locked` would conflate a destroyed session with
+    // a paused one and let downstream checks resurrect it.
+    assert!(s.is_removed(), "lock() must be a no-op on Removed");
+}

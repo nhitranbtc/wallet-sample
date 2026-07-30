@@ -12,3 +12,10 @@ chain-core = { path = "../chain-core" }
 wallet-domain = { path = "../wallet-domain" }
 zeroize = { workspace = true }
 thiserror = { workspace = true }
+
+# Integration tests in `tests/` need `BiometricProof::granted_for_test`,
+# which is gated behind the `test-fixtures` feature on `secure-storage`.
+# Enabling it here keeps production builds free of the test helper
+# while still letting the integration tests build a synthetic proof.
+[dev-dependencies]
+secure-storage = { path = "../secure-storage", features = ["test-fixtures"] }

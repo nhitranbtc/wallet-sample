@@ -35,14 +35,16 @@ pub enum BiometricProof {
     },
 }
 
+#[cfg(any(test, feature = "test-fixtures"))]
 impl BiometricProof {
     /// Test-only constructor: builds a `Granted` variant directly.
-    /// Always available so integration tests in `tests/` can call it
-    /// (Cargo does not propagate `cfg(test)` from the test target back
-    /// into the library it depends on); the `_for_test` suffix and
-    /// `#[doc(hidden)]` mark it as not part of the production API.
-    /// Production code paths must route through a real platform
-    /// secure-storage implementation.
+    /// Gated behind `feature = "test-fixtures"` so production builds do
+    /// not compile this helper — only the type and its `Granted`
+    /// variant reach release artifacts. Downstream test targets enable
+    /// the feature via their own dev-dependency declaration. The
+    /// `_for_test` suffix and `#[doc(hidden)]` mark it as not part of
+    /// the production API. Production code paths must route through a
+    /// real platform secure-storage implementation.
     #[doc(hidden)]
     pub fn granted_for_test(
         wrapped: WrappedKey,
