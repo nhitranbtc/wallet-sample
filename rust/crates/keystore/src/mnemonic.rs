@@ -39,7 +39,12 @@ impl Mnemonic {
         self.phrase.zeroize();
     }
 
-    #[cfg(test)]
+    /// **Test-only helper** — exposes the human-readable BIP-39 phrase.
+    ///
+    /// Gated behind `feature = "test-fixtures"` (and `cfg(test)`) so the
+    /// mnemonic phrase is never readable outside of integration tests.
+    /// Production builds compile this method out entirely.
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn phrase_for_test(&self) -> &str {
         &self.phrase
     }
