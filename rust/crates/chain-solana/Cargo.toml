@@ -1,0 +1,22 @@
+[package]
+name = "chain-solana"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait = { workspace = true }
+solana-signer = { workspace = true }
+solana-rpc-client = { workspace = true }
+tokio = { workspace = true }
+thiserror = { workspace = true }
+wallet-domain = { path = "../wallet-domain" }
+chain-core = { path = "../chain-core" }
+keystore = { path = "../keystore" }
+rpc-client = { path = "../rpc-client" }
+ed25519-dalek = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+uuid = { workspace = true }
+bs58 = { workspace = true }

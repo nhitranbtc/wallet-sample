@@ -13,6 +13,7 @@ use crate::status::WalletStatus;
 
 use chain_bitcoin::{BitcoinAdapter, BitcoinConfig};
 use chain_ethereum::{EthereumAdapter, EthereumConfig};
+use chain_solana::{SolanaAdapter, SolanaConfig};
 use rpc_client::{EndpointConfig, ProviderPolicy};
 use wallet_domain::account::{AccountRef, ChainId, Network};
 use wallet_domain::amount::Amount;
@@ -39,11 +40,11 @@ pub(crate) fn read(handle: &WalletHandle) -> WalletStatus {
     }
 }
 
-/// Release-1 chain set: Ethereum (Sepolia) + Bitcoin (testnet).
-/// Solana and Tron land in Tasks 16 / 17.
+/// Release-1 + Release-2 chain set: Ethereum (Sepolia) + Bitcoin
+/// (testnet) + Solana (devnet). Tron lands in Task 17.
 pub(crate) fn list_chains(handle: &WalletHandle) -> Vec<ChainId> {
     let _ = handle;
-    vec![ChainId::Ethereum, ChainId::Bitcoin]
+    vec![ChainId::Ethereum, ChainId::Bitcoin, ChainId::Solana]
 }
 
 /// Refresh account-zero descriptors for the wallet. The actual
@@ -87,7 +88,12 @@ pub(crate) fn prepare_native_transfer(
                 .map_err(|e| DartError::from(&e, ErrorCategory::ChainState))?;
             adapter_block_on(adapter.prepare_transfer(request))
         }
-        ChainId::Solana | ChainId::Tron => {
+        ChainId::Solana => {
+            let adapter = SolanaAdapter::new(default_sol_config())
+                .map_err(|e| DartError::from(&e, ErrorCategory::ChainState))?;
+            adapter_block_on(adapter.prepare_transfer(request))
+        }
+        ChainId::Tron => {
             return Err(DartError::from_category(ErrorCategory::ChainState));
         }
     }
@@ -163,7 +169,7 @@ fn placeholder_address(chain: ChainId) -> String {
     }
 }
 
-/// Account-zero descriptors for every Release-1 chain.
+/// Account-zero descriptors for every Release-1 + Release-2 chain.
 fn account_zero_descriptors() -> Vec<ChainDescriptor> {
     vec![
         ChainDescriptor {
@@ -175,6 +181,11 @@ fn account_zero_descriptors() -> Vec<ChainDescriptor> {
             chain: ChainId::Bitcoin,
             symbol: "BTC".into(),
             default_decimals: 8,
+        },
+        ChainDescriptor {
+            chain: ChainId::Solana,
+            symbol: "SOL".into(),
+            default_decimals: 9,
         },
     ]
 }
@@ -207,6 +218,25 @@ fn default_btc_config() -> BitcoinConfig {
         endpoint,
         bdk_network: bdk_wallet::bitcoin::Network::Testnet,
         encrypted_db_path: ":memory:".into(),
+    }
+}
+
+/// Testnet-only default Solana (devnet) endpoint. The host must
+/// appear in the `rpc_client::ProviderPolicy::dev_default(Solana)`
+/// allow-list (`api.devnet.solana.com`) so `endpoint.validate()`
+/// succeeds and `SolanaAdapter::new` does not return
+/// `ChainError::Configuration`.
+fn default_sol_config() -> SolanaConfig {
+    let endpoint = EndpointConfig {
+        chain: rpc_client::Chain::Solana,
+        url: "https://api.devnet.solana.com".into(),
+        network: Network::Testnet,
+        policy: ProviderPolicy::dev_default(rpc_client::Chain::Solana),
+    };
+    SolanaConfig {
+        network: Network::Testnet,
+        endpoint,
+        rpc_url: "https://api.devnet.solana.com".into(),
     }
 }
 

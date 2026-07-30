@@ -20,6 +20,7 @@ rpc-client = { path = "../rpc-client" }
 wallet-orchestration = { path = "../wallet-orchestration" }
 chain-ethereum = { path = "../chain-ethereum" }
 chain-bitcoin = { path = "../chain-bitcoin" }
+chain-solana = { path = "../chain-solana" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }

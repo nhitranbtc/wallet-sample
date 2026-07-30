@@ -8,6 +8,7 @@ members = [
   "crates/wallet-orchestration",
   "crates/chain-ethereum",
   "crates/chain-bitcoin",
+  "crates/chain-solana",
   "crates/rpc-client",
   "crates/ffi-bridge",
 ]
@@ -33,8 +34,8 @@ alloy = { version = "1", features = ["full"] }
 bdk_wallet = "1"
 bdk_esplora = "0.21"
 rusqlite = { version = "0.31", features = ["bundled"] }
-solana-signer = "1"
-solana-rpc-client = "1"
+solana-signer = "2"
+solana-rpc-client = "2"
 flutter_rust_bridge = "=2.0.0-dev.32"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
