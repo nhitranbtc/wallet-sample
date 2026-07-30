@@ -11,6 +11,7 @@ use crate::error::DartError;
 use crate::handle::{PreparedHandle, WalletHandle};
 
 use chain_bitcoin::{BitcoinAdapter, BitcoinConfig};
+use chain_core::ChainAdapter;
 use chain_ethereum::{EthereumAdapter, EthereumConfig};
 use rpc_client::{EndpointConfig, ProviderPolicy};
 use secure_storage::BiometricProof;

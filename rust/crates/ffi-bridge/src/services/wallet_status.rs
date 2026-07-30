@@ -12,6 +12,7 @@ use crate::handle::{PreparedHandle, WalletHandle};
 use crate::status::WalletStatus;
 
 use chain_bitcoin::{BitcoinAdapter, BitcoinConfig};
+use chain_core::ChainAdapter;
 use chain_ethereum::{EthereumAdapter, EthereumConfig};
 use chain_solana::{SolanaAdapter, SolanaConfig};
 use rpc_client::{EndpointConfig, ProviderPolicy};
