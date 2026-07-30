@@ -22,7 +22,7 @@ impl Derive for WalletSession {
     fn derive_evm_address(&self) -> Result<String, WalletError> {
         let public = self
             .derive_evm_key()?
-            .public_key(Secp256k1::new())
+            .public_key(&Secp256k1::new())
             .serialize_uncompressed();
         let hash = Keccak256::digest(&public[1..]);
         Ok(format!("0x{}", hex::encode(&hash[12..])))
@@ -31,7 +31,7 @@ impl Derive for WalletSession {
     fn derive_bitcoin_address(&self, change: bool) -> Result<String, WalletError> {
         let path = format!("m/84'/1'/0'/{}", usize::from(change));
         let key = derive_secp256k1(&self.seed, &path)?;
-        let witness_program = Sha256::digest(key.public_key(Secp256k1::new()).serialize());
+        let witness_program = Sha256::digest(key.public_key(&Secp256k1::new()).serialize());
         let mut data = vec![0x06, 0x14];
         // FIXME(keystore -> chain-bitcoin): swap to HASH160 (SHA-256 -> RIPEMD-160) before flipping the BTC vector test off `#[ignore]`.
         data.extend_from_slice(&witness_program[..20]);
