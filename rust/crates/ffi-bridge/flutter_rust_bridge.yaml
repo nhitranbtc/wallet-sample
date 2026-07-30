@@ -1,0 +1,3 @@
+rust_root: .
+dart_root: ../../../flutter_app
+flutter: true
