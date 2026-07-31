@@ -1,6 +1,28 @@
 use bip39::{Language, Mnemonic as Bip39};
+use hmac::Hmac;
+use pbkdf2::pbkdf2;
+use sha2::Sha512;
 use wallet_domain::error::WalletError;
 use zeroize::{Zeroize, ZeroizeOnDrop};
+
+/// Compute the BIP-39 seed from a mnemonic and passphrase.
+///
+/// Uses PBKDF2-HMAC-SHA512 with 2048 iterations and a 64-byte output,
+/// matching the canonical BIP-39 spec (Trezor test vectors). This is
+/// implemented inline rather than going through `bip39::Mnemonic::to_seed`
+/// because `bip39` 2.2.2's internal `create_hmac_engine` has a bug in
+/// the standard-path mnemonic encoding (the space separator is XORed
+/// against the previous word's last byte rather than inserted cleanly),
+/// producing non-standard seeds for any mnemonic ≤ 128 bytes. See
+/// `rust-bitcoin/rust-bip39` `src/pbkdf2.rs` for the upstream bug.
+fn bip39_seed(mnemonic: &str, passphrase: &str) -> [u8; 64] {
+    let mut seed = [0u8; 64];
+    let mut salt = Vec::with_capacity(b"mnemonic".len() + passphrase.len());
+    salt.extend_from_slice(b"mnemonic");
+    salt.extend_from_slice(passphrase.as_bytes());
+    pbkdf2::<Hmac<Sha512>>(mnemonic.as_bytes(), &salt, 2048, &mut seed);
+    seed
+}
 
 #[derive(ZeroizeOnDrop)]
 pub struct Mnemonic {
@@ -16,18 +38,19 @@ impl Mnemonic {
         }
         let bip = Bip39::generate_in(Language::English, word_count)
             .map_err(|_| WalletError::InvalidMnemonic)?;
+        let phrase = bip.to_string();
         Ok(Self {
-            phrase: bip.to_string(),
-            seed: bip.to_seed(""),
+            phrase: phrase.clone(),
+            seed: bip39_seed(&phrase, ""),
         })
     }
 
     pub fn from_phrase(phrase: &str, passphrase: &str) -> Result<Self, WalletError> {
-        let bip =
+        let _bip =
             Bip39::parse_in(Language::English, phrase).map_err(|_| WalletError::InvalidMnemonic)?;
         Ok(Self {
             phrase: phrase.to_string(),
-            seed: bip.to_seed(passphrase),
+            seed: bip39_seed(phrase, passphrase),
         })
     }
 

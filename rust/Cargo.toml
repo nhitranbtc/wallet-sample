@@ -48,3 +48,5 @@ bs58 = "0.5"
 bech32 = "0.9"
 uuid = { version = "1", features = ["v4"] }
 url = "2"
+pbkdf2 = "0.11"
+hmac = "0.12"

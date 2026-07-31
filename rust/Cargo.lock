@@ -1842,6 +1842,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "chain-tron"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bs58",
+ "chain-core",
+ "chrono",
+ "keystore",
+ "rpc-client",
+ "serde",
+ "sha2 0.10.9",
+ "thiserror 2.0.19",
+ "tokio",
+ "uuid",
+ "wallet-domain",
+]
+
+[[package]]
 name = "chrono"
 version = "0.4.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2584,6 +2602,7 @@ dependencies = [
  "chain-core",
  "chain-ethereum",
  "chain-solana",
+ "chain-tron",
  "chrono",
  "flutter_rust_bridge",
  "keystore",
@@ -3575,7 +3594,9 @@ dependencies = [
  "bs58",
  "ed25519-dalek 2.2.0",
  "hex",
+ "hmac 0.12.1",
  "k256",
+ "pbkdf2",
  "secp256k1 0.29.1",
  "sha2 0.10.9",
  "sha3 0.10.9",
@@ -4002,6 +4023,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "password-hash"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7676374caaee8a325c9e7a2ae557f216c5563a171d6997b0ef8a65af35147700"
+dependencies = [
+ "base64ct",
+ "rand_core 0.6.4",
+ "subtle 2.6.1",
+]
+
+[[package]]
 name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4014,6 +4046,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "83a0692ec44e4cf1ef28ca317f14f8f07da2d95ec3fa01f86e4467b725e60917"
 dependencies = [
  "digest 0.10.7",
+ "hmac 0.12.1",
+ "password-hash",
+ "sha2 0.10.9",
 ]
 
 [[package]]
