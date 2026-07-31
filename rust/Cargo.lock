@@ -1826,6 +1826,8 @@ name = "chain-solana"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "base64 0.21.7",
+ "bincode",
  "bs58",
  "chain-core",
  "chrono",
@@ -1834,7 +1836,9 @@ dependencies = [
  "rpc-client",
  "serde",
  "solana-rpc-client",
+ "solana-signature",
  "solana-signer",
+ "solana-transaction",
  "thiserror 2.0.19",
  "tokio",
  "uuid",

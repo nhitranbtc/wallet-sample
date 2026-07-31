@@ -43,7 +43,7 @@ fn request(destination: &str, amount: u128) -> TransferRequest {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn descriptor_is_solana_testnet() {
     let a = SolanaAdapter::new(config()).unwrap();
     let d = a.descriptor();
@@ -54,7 +54,7 @@ async fn descriptor_is_solana_testnet() {
     assert_eq!(d.default_decimals, 9);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn prepare_rejects_zero_amount() {
     let a = SolanaAdapter::new(config()).unwrap();
     let req = request("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", 0);
@@ -62,7 +62,7 @@ async fn prepare_rejects_zero_amount() {
     assert_eq!(err.category(), ErrorCategory::Input);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn prepare_accepts_valid_solana_address() {
     let a = SolanaAdapter::new(config()).unwrap();
     // A known-valid mainnet ed25519 pubkey: the USDC token mint
@@ -72,15 +72,12 @@ async fn prepare_accepts_valid_solana_address() {
     // point nor a small-subgroup point — so it clears every arm of
     // `is_valid_solana_pubkey`. The all-zero System Program address
     // is covered separately by `prepare_rejects_all_zero_pubkey`.
-    let req = request(
-        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-        1,
-    );
+    let req = request("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", 1);
     let prepared = a.prepare_transfer(req).await.expect("valid pubkey");
     assert_eq!(prepared.amount, Amount(1));
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn prepare_rejects_malformed_address() {
     let a = SolanaAdapter::new(config()).unwrap();
     // "not-a-pubkey" is not valid base58 of any length and the
@@ -93,7 +90,7 @@ async fn prepare_rejects_malformed_address() {
     assert_eq!(err.category(), ErrorCategory::Input);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn prepare_rejects_all_zero_pubkey() {
     let a = SolanaAdapter::new(config()).unwrap();
     // The System Program address `11111111111111111111111111111111`
@@ -110,7 +107,7 @@ async fn prepare_rejects_all_zero_pubkey() {
     assert_eq!(err.category(), ErrorCategory::Input);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn prepare_rejects_wrong_length_base58() {
     let a = SolanaAdapter::new(config()).unwrap();
     // Valid base58 but not 32 bytes — bs58 decode succeeds but

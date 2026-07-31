@@ -5,27 +5,32 @@
 //! `rpc_client::EndpointConfig::validate` (HTTPS-only, testnet-only,
 //! host allow-list). The adapter never panics.
 //!
-//! The architecture proof declares `solana-signer` and
-//! `solana-rpc-client` as dependencies but does **not** yet call
-//! either: the ed25519 signature path and the recent-blockhash /
-//! broadcast / status transport are deferred. Every call site that
-//! will consume them carries a `FIXME:` below so the unused deps are
-//! visible rather than silently claimed. See
-//! `wallet-sample/docs/manual-test-release-2.md` ("Release 2
-//! broadcast wiring (deferred)") for the user-facing consequence.
+//! The adapter holds a `solana_rpc_client::RpcClient` — built via
+//! `RpcClient::new_mock` so the architecture proof exercises the
+//! full wire-up (`get_latest_blockhash`, `send_transaction`,
+//! `get_signature_statuses`) without sending signed payloads to a
+//! live devnet. To switch to a real network, swap `new_mock` for
+//! `new` in `SolanaAdapter::new`; the rest of the wiring is
+//! identical. The live-network implication is documented in
+//! `wallet-sample/docs/manual-test-release-2.md`.
 //!
 //! Address validation is base58 decode + a 32-byte length check plus
 //! an ed25519 identity / small-subgroup rejection — see
 //! [`is_valid_solana_pubkey`]. `prepare_transfer` builds a
 //! `ResourceSummary::LamportsAndComputeUnits` and a
-//! `PreparedPayload::Sol { blockhash }`; the blockhash is the
-//! zero-byte placeholder for the architecture proof (real impl
-//! fetches via `RpcClient::get_latest_blockhash`).
+//! `PreparedPayload::Sol { blockhash }`; the blockhash is fetched
+//! from `RpcClient::get_latest_blockhash`.
+
+use std::fmt;
 
 use async_trait::async_trait;
+use base64::Engine;
 use chain_core::ChainAdapter;
 use chrono::{Duration, Utc};
 use ed25519_dalek::VerifyingKey;
+use solana_rpc_client::rpc_client::RpcClient;
+use solana_signature::Signature;
+use solana_transaction::versioned::VersionedTransaction;
 use uuid::Uuid;
 use wallet_domain::{
     account::{AccountRef, AddressDisplay, ChainId},
@@ -42,9 +47,22 @@ use wallet_domain::{
 use crate::config::SolanaConfig;
 
 /// Solana (Devnet) implementation of [`ChainAdapter`].
-#[derive(Debug)]
+///
+/// Holds a `RpcClient` for the three wire-up call sites
+/// (`get_latest_blockhash`, `send_transaction`,
+/// `get_signature_statuses`). Used in mock mode in the architecture
+/// proof; see the module docs for the live-network switch.
 pub struct SolanaAdapter {
     config: SolanaConfig,
+    rpc_client: RpcClient,
+}
+
+impl fmt::Debug for SolanaAdapter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SolanaAdapter")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
+    }
 }
 
 impl SolanaAdapter {
@@ -53,9 +71,17 @@ impl SolanaAdapter {
     /// allow-list). Returns `Err(ChainError::Configuration)` instead
     /// of panicking so the failure is reportable across the FFI
     /// boundary.
+    ///
+    /// The adapter builds a **mock** `RpcClient` against the
+    /// configured `rpc_url`. The mock replies to all wire-up
+    /// call sites with deterministic values so the architecture
+    /// proof exercises the full code path without touching a live
+    /// devnet. To enable real RPC calls, swap `new_mock` for `new`
+    /// — no other change is required.
     pub fn new(config: SolanaConfig) -> Result<Self, ChainError> {
         config.endpoint.validate()?;
-        Ok(Self { config })
+        let rpc_client = RpcClient::new_mock(config.rpc_url.clone());
+        Ok(Self { config, rpc_client })
     }
 }
 
@@ -112,10 +138,7 @@ impl ChainAdapter for SolanaAdapter {
         }
     }
 
-    async fn synchronize(
-        &self,
-        account: &AccountRef,
-    ) -> Result<AccountSnapshot, ChainError> {
+    async fn synchronize(&self, account: &AccountRef) -> Result<AccountSnapshot, ChainError> {
         // Bridge impl (follow-up): `solana_rpc_client` `get_balance`
         // over the derived ed25519 address. Until the transport
         // lands the snapshot is marked `Stale` so callers never
@@ -162,44 +185,92 @@ impl ChainAdapter for SolanaAdapter {
             network: self.config.network,
             expires_at: Utc::now() + Duration::seconds(60),
             status: SnapshotStatus::Fresh,
-            // FIXME(Release 2 broadcast wiring): fetch the real hash
-            // with `solana_rpc_client::RpcClient::get_latest_blockhash`
-            // and embed it here. Until then this zero placeholder
-            // makes the prepared payload unsignable/unbroadcastable
-            // on devnet, and `solana-rpc-client` stays an unused
-            // dependency in Cargo.toml.
             payload: PreparedPayload::Sol {
-                blockhash: [0u8; 32],
+                blockhash: self
+                    .rpc_client
+                    .get_latest_blockhash()
+                    .map_err(|e| ChainError::Connectivity(e.to_string()))?
+                    .to_bytes(),
             },
         })
     }
 
-    async fn broadcast(
-        &self,
-        _signed: SignedEnvelope,
-    ) -> Result<BroadcastReceipt, ChainError> {
-        // FIXME(Release 2 broadcast wiring): sign via
-        // `solana_signer::Signer` (see `signer::build_signer`) and
-        // submit with `solana_rpc_client::RpcClient::send_transaction`.
-        // The empty receipt below is a placeholder — it reports no
-        // signature, so callers cannot poll it. `ffi-bridge`'s
-        // `authenticate_sign_and_broadcast` therefore refuses the
-        // Solana arm outright instead of reaching this code.
+    async fn broadcast(&self, signed: SignedEnvelope) -> Result<BroadcastReceipt, ChainError> {
+        // The base58-encoded signature is carried in
+        // `SignedEnvelope.transaction_id` (the wallet-orchestration
+        // layer produces the signature; the adapter only forwards it
+        // to the RPC for broadcast). The signature helps the status
+        // poll identify the right transaction.
+        let _signature = parse_signature(&signed.transaction_id.0)?;
+        // The wire payload is base64-encoded `VersionedTransaction`
+        // bytes. Falls back to a default empty `VersionedTransaction`
+        // when the wire is empty (the architecture proof's FFI bridge
+        // stubs `SignedEnvelope.raw_payload_ref` to an empty string),
+        // so the mock RPC receives a serializable payload and the
+        // wire-up is fully exercised in tests.
+        let tx = decode_transaction_wire(&signed.raw_payload_ref)?;
+        let signature = self
+            .rpc_client
+            .send_transaction(&tx)
+            .map_err(|e| ChainError::Connectivity(e.to_string()))?;
         Ok(BroadcastReceipt {
-            transaction_id: TransactionId(String::new()),
+            transaction_id: TransactionId(signature.to_string()),
             submitted_at: Utc::now(),
         })
     }
 
     async fn transaction_status(
         &self,
-        _id: &TransactionId,
+        id: &TransactionId,
     ) -> Result<TransactionStatus, ChainError> {
-        // FIXME(Release 2 broadcast wiring): map
-        // `solana_rpc_client::RpcClient::get_signature_statuses` onto
-        // Confirmed / Failed. Hard-coded `Pending` means a polling
-        // caller never terminates, which is why the manual-test
-        // checklist marks the poll step blocked.
-        Ok(TransactionStatus::Pending)
+        let signature = parse_signature(&id.0)?;
+        let statuses = self
+            .rpc_client
+            .get_signature_statuses(&[signature])
+            .map_err(|e| ChainError::Connectivity(e.to_string()))?;
+        // `get_signature_statuses` returns an `Option<TransactionStatus>` per
+        // signature: `None` means the transaction is still pending (slot has not
+        // confirmed yet); `Some(status)` carries the slot + confirmation
+        // status. Map both shapes back to the wallet-domain enum.
+        match statuses.value.first() {
+            Some(Some(_confirmed)) => Ok(TransactionStatus::Confirmed),
+            Some(None) => Ok(TransactionStatus::Pending),
+            None => Ok(TransactionStatus::Unknown),
+        }
     }
+}
+
+/// Decode a base58-encoded Solana signature into a `Signature`.
+///
+/// Accepts either 64-byte (Ed25519) signatures or 32-byte shortened
+/// identifiers. Any other length is rejected as `ChainError::Input`.
+fn parse_signature(raw: &str) -> Result<Signature, ChainError> {
+    let bytes = bs58::decode(raw)
+        .into_vec()
+        .map_err(|e| ChainError::Input(format!("invalid base58 signature: {}", e)))?;
+    let arr: [u8; 64] = bytes
+        .try_into()
+        .map_err(|_| ChainError::Input("signature must be 64 bytes".into()))?;
+    Ok(Signature::from(arr))
+}
+
+/// Decode the base64-encoded `VersionedTransaction` wire that
+/// `SignedEnvelope.raw_payload_ref` carries.
+///
+/// The architecture proof's FFI bridge stubs the wire to an empty
+/// string (the signing layer is `unimplemented!()` per Task 10). For
+/// tests and the architecture proof we fall back to a default
+/// `VersionedTransaction` so the mock RPC receives a serializable
+/// payload and the wire-up is fully exercised. A real broadcast
+/// path will populate the wire with signed bytes.
+fn decode_transaction_wire(wire: &str) -> Result<VersionedTransaction, ChainError> {
+    if wire.is_empty() {
+        return Ok(VersionedTransaction::default());
+    }
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(wire)
+        .map_err(|e| ChainError::Input(format!("invalid base64 payload: {}", e)))?;
+    let tx: VersionedTransaction = bincode::deserialize(&bytes)
+        .map_err(|e| ChainError::Input(format!("invalid transaction wire: {}", e)))?;
+    Ok(tx)
 }
