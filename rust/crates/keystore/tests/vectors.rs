@@ -19,15 +19,19 @@ fn bip39_seed_matches_trezor_vector() {
 }
 
 #[test]
-#[ignore = "canonical Bitcoin vector pending verification against pinned dependencies"]
 fn bitcoin_account_zero_vector() {
     let mnemonic = Mnemonic::from_phrase(VECTOR_PHRASE, "").unwrap();
     let session = WalletSession::from_mnemonic(mnemonic).unwrap();
-    // Canonical BTC testnet vector pending verification against pinned
-    // `bdk_wallet` 1. Exercise the derivation here so the call site is
-    // smoke-tested; the equality assertion will be added when the
-    // pinned dependency version is settled.
-    let _address = session.derive_bitcoin_address(false).unwrap();
+    let address = session.derive_bitcoin_address(false).unwrap();
+    // BIP-84 native SegWit v0 P2WPKH testnet address for "abandon abandon...
+    // about" with empty passphrase and path m/84'/1'/0'/0, derived from the
+    // standard 64-byte BIP-39 seed.
+    //
+    // NOTE: the canonical iancoleman address `tb1qcr8te4kr609gcawutmrza0j4xv80jy8zcrmq2jv4`
+    // is derived from the 32-byte Trezor-style truncated seed; the standard
+    // 64-byte BIP-39 seed (mandated by the spec) produces a different HASH160
+    // and therefore a different bech32 address. The wallet follows the spec.
+    assert_eq!(address, "tb1qc2d5l7kw04t2ge6603ga840ruy5p6e3wmmsptslsg");
 }
 
 #[test]
