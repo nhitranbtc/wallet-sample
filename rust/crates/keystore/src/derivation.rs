@@ -2,6 +2,7 @@ use crate::WalletSession;
 use bech32::{ToBase32, Variant};
 use ed25519_dalek::SigningKey as Ed25519SigningKey;
 use k256::ecdsa::SigningKey as K256SigningKey;
+use ripemd::Ripemd160;
 use secp256k1::{Secp256k1, SecretKey};
 use sha2::{Digest, Sha256};
 use sha3::Keccak256;
@@ -31,10 +32,13 @@ impl Derive for WalletSession {
     fn derive_bitcoin_address(&self, change: bool) -> Result<String, WalletError> {
         let path = format!("m/84'/1'/0'/{}", usize::from(change));
         let key = derive_secp256k1(&self.seed, &path)?;
-        let witness_program = Sha256::digest(key.public_key(&Secp256k1::new()).serialize());
+        // HASH160 = RIPEMD-160(SHA-256(public_key)) — the standard fingerprint
+        // used by both P2PKH and P2WPKH Bitcoin addresses. SHA-256 alone is
+        // not the same hash and would produce invalid bech32 addresses.
+        let sha_hash = Sha256::digest(key.public_key(&Secp256k1::new()).serialize());
+        let witness_program = Ripemd160::digest(sha_hash);
         let mut data = vec![0x06, 0x14];
-        // FIXME(keystore -> chain-bitcoin): swap to HASH160 (SHA-256 -> RIPEMD-160) before flipping the BTC vector test off `#[ignore]`.
-        data.extend_from_slice(&witness_program[..20]);
+        data.extend_from_slice(&witness_program);
         bech32::encode("tb", data.to_base32(), Variant::Bech32)
             .map_err(|_| WalletError::DerivationFailed)
     }
